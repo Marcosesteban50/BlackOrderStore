@@ -164,7 +164,7 @@ public static class GuidesSeeder
         {
             logger.LogWarning(
                 exception,
-                "Guides seed skipped. Run 'dotnet ef database update' to create the schema first.");
+                "Guides seed skipped. Check the database connection string and run 'dotnet ef database update' if the schema is missing.");
         }
     }
 }

@@ -25,6 +25,14 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Console/debug logging only. The default Windows EventLog provider throws
+// "Cannot open log for source '.NET Runtime'" when the process cannot write to
+// the Event Log, and LoggerFactory rethrows provider failures, taking the whole
+// API down on the first logged error (for example, a database connection issue).
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -192,7 +200,10 @@ app.MapControllers();
 
 if (app.Environment.IsDevelopment())
 {
-    await GuidesSeeder.SeedAsync(app.Services, app.Logger);
+    // Seed after the server is listening: a slow or unavailable database must not
+    // delay startup. The seeder catches and logs its own errors.
+    app.Lifetime.ApplicationStarted.Register(() =>
+        _ = Task.Run(() => GuidesSeeder.SeedAsync(app.Services, app.Logger)));
 }
 
 app.Run();
