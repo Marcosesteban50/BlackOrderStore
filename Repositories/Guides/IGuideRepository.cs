@@ -9,10 +9,33 @@ public interface IGuideRepository
         GuideFilterDTO filter,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<Guide> Items, int TotalCount)> GetManagedPagedAsync(
+        GuideFilterDTO filter,
+        CancellationToken cancellationToken = default);
+
     Task<Guide?> GetPublishedBySlugAsync(
         string slug,
         CancellationToken cancellationToken = default);
 
+    Task<Guide?> GetManagedByIdAsync(
+        string id,
+        CancellationToken cancellationToken = default);
+
+    Task<Guide?> GetTrackedByIdAsync(
+        string id,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<GuideCategory>> GetCategoriesAsync(
         CancellationToken cancellationToken = default);
+
+    Task<bool> SlugExistsAsync(
+        string slug,
+        string? excludeId = null,
+        CancellationToken cancellationToken = default);
+
+    Task AddAsync(Guide guide, CancellationToken cancellationToken = default);
+
+    void Remove(Guide guide);
+
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

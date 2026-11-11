@@ -4,6 +4,8 @@ namespace Black_order.DTOs.GuideDTOs
     {
         public string ContentHtml { get; set; } = string.Empty;
 
+        public string? CategoryId { get; set; }
+
         public DateTimeOffset CreatedAt { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }

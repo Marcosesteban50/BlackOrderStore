@@ -23,3 +23,24 @@ Accept: application/json
 ### Detalle inexistente (404 con ProblemDetails)
 GET {{baseUrl}}/api/Guide/no-existe
 Accept: application/json
+
+# ============ ADMIN ============
+# Pega aqui el token JWT de un usuario con el claim Admin.
+@token = PEGAR_TOKEN_ADMIN
+
+### Listado admin (incluye borradores)
+GET {{baseUrl}}/api/Guide/manage?page=1&pageSize=10
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Detalle admin por id
+GET {{baseUrl}}/api/Guide/manage/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Eliminar guia
+DELETE {{baseUrl}}/api/Guide/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+# Crear y editar son multipart/form-data (portada + campos).
+# Usa Swagger UI (POST /api/Guide y PUT /api/Guide/{id}) para probarlos con archivo.

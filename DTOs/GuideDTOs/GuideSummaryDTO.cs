@@ -22,6 +22,8 @@ namespace Black_order.DTOs.GuideDTOs
 
         public DateTimeOffset? PublishedAt { get; set; }
 
+        public bool IsPublished { get; set; }
+
         public int ViewCount { get; set; }
     }
 }

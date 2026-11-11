@@ -65,6 +65,22 @@ namespace Black_order.Utilities.MapsterProfiles
 
             config.NewConfig<GuideCategory, GuideCategoryDTO>();
 
+            config.NewConfig<CreateGuideDTO, Guide>()
+                .Ignore(guide => guide.Id)
+                .Ignore(guide => guide.Slug)
+                .Ignore(guide => guide.AuthorId)
+                .Ignore(guide => guide.Author)
+                .Ignore(guide => guide.Category)
+                .Ignore(guide => guide.Media)
+                .Ignore(guide => guide.CoverUrl)
+                .Ignore(guide => guide.CreatedAt)
+                .Ignore(guide => guide.UpdatedAt)
+                .Ignore(guide => guide.PublishedAt)
+                .Ignore(guide => guide.ViewCount)
+                .Map(guide => guide.CategoryId, dto => string.IsNullOrWhiteSpace(dto.CategoryId) ? null : dto.CategoryId)
+                .Map(guide => guide.Level, dto => string.IsNullOrWhiteSpace(dto.Level) ? null : dto.Level)
+                .Map(guide => guide.Expansion, dto => string.IsNullOrWhiteSpace(dto.Expansion) ? null : dto.Expansion);
+
 
         }
 
