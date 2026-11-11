@@ -33,11 +33,11 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         {
             Status = status,
             Title = status == StatusCodes.Status401Unauthorized
-                ? "No autenticado"
-                : "Error interno del servidor",
+                ? "Unauthorized"
+                : "Internal server error",
             Detail = status == StatusCodes.Status401Unauthorized
                 ? exception.Message
-                : "Ocurrió un error inesperado.",
+                : "An unexpected error occurred.",
             Instance = httpContext.Request.Path
         };
 

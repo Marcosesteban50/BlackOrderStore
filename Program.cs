@@ -2,6 +2,7 @@ using Black_order.Data;
 using Black_order.Repositories.Categories;
 using Black_order.Repositories.Carts;
 using Black_order.Repositories.Favorites;
+using Black_order.Repositories.Guides;
 using Black_order.Repositories.Products;
 using Black_order.Repositories.Profiles;
 using Black_order.Repositories.Users;
@@ -105,6 +106,7 @@ builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IGuideRepository, GuideRepository>();
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
@@ -187,5 +189,10 @@ app.UseAuthorization();
 
 app.UseOutputCache();
 app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    await GuidesSeeder.SeedAsync(app.Services, app.Logger);
+}
 
 app.Run();

@@ -1,6 +1,8 @@
-﻿using Black_order.DTOs.CategoryDTOs;
+using Black_order.DTOs.CategoryDTOs;
+using Black_order.DTOs.GuideDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Models;
+using Black_order.Models.Guides;
 using Mapster;
 
 namespace Black_order.Utilities.MapsterProfiles
@@ -46,6 +48,22 @@ namespace Black_order.Utilities.MapsterProfiles
                 .Ignore(x => x.Id)
                 .Ignore(x => x.Images)
                 .Ignore(category => category.Products);
+
+
+            /*******************************GUIDES*******************************/
+            config.NewConfig<Guide, GuideSummaryDTO>()
+                .Map(guideDTO => guideDTO.CategoryName, guide => guide.Category != null ? guide.Category.Name : null)
+                .Map(guideDTO => guideDTO.CategorySlug, guide => guide.Category != null ? guide.Category.Slug : null);
+
+            config.NewConfig<Guide, GuideDTO>()
+                .Map(guideDTO => guideDTO.CategoryName, guide => guide.Category != null ? guide.Category.Name : null)
+                .Map(guideDTO => guideDTO.CategorySlug, guide => guide.Category != null ? guide.Category.Slug : null)
+                .Map(guideDTO => guideDTO.Media, guide => guide.Media.OrderBy(media => media.SortOrder).ToList());
+
+            config.NewConfig<GuideMedia, GuideMediaDTO>()
+                .Map(mediaDTO => mediaDTO.MediaType, media => media.MediaType.ToString());
+
+            config.NewConfig<GuideCategory, GuideCategoryDTO>();
 
 
         }

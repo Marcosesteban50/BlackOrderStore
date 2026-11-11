@@ -1,6 +1,25 @@
-@Black_order_HostAddress = http://localhost:5007
+@baseUrl = https://localhost:7219
 
-GET {{Black_order_HostAddress}}/weatherforecast/
+### Listado paginado de guias publicadas
+GET {{baseUrl}}/api/Guide?page=1&pageSize=12
 Accept: application/json
 
-###
+### Listado filtrado por categoria y texto
+GET {{baseUrl}}/api/Guide?page=1&pageSize=12&category=leveling&search=nivel
+Accept: application/json
+
+### Pagina fuera de rango (devuelve lista vacia, no 404)
+GET {{baseUrl}}/api/Guide?page=99&pageSize=12
+Accept: application/json
+
+### Categorias de guias
+GET {{baseUrl}}/api/Guide/categories
+Accept: application/json
+
+### Detalle por slug
+GET {{baseUrl}}/api/Guide/subir-nivel-1-80-rapido
+Accept: application/json
+
+### Detalle inexistente (404 con ProblemDetails)
+GET {{baseUrl}}/api/Guide/no-existe
+Accept: application/json

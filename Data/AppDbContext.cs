@@ -1,6 +1,7 @@
 
 using Black_order.DTOs.UserDTOs;
 using Black_order.Models;
+using Black_order.Models.Guides;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -29,6 +30,9 @@ namespace Black_order.Data
             ConfigureUserProfile(modelBuilder.Entity<UserProfile>());
             ConfigureFavorite(modelBuilder.Entity<Favorite>());
             ConfigureFavoriteItem(modelBuilder.Entity<FavoriteItems>());
+            ConfigureGuideCategory(modelBuilder.Entity<GuideCategory>());
+            ConfigureGuide(modelBuilder.Entity<Guide>());
+            ConfigureGuideMedia(modelBuilder.Entity<GuideMedia>());
         }
 
         private static void ConfigureProduct(EntityTypeBuilder<Product> entity)
@@ -108,6 +112,60 @@ namespace Black_order.Data
                 .OnDelete(DeleteBehavior.Cascade);
         }
 
+        private static void ConfigureGuideCategory(EntityTypeBuilder<GuideCategory> entity)
+        {
+            entity.ToTable("GuideCategories");
+            entity.Property(category => category.Name).IsRequired().HasMaxLength(100);
+            entity.Property(category => category.Slug).IsRequired().HasMaxLength(120);
+            entity.Property(category => category.Description).HasMaxLength(500);
+            entity.HasIndex(category => category.Slug).IsUnique();
+        }
+
+        private static void ConfigureGuide(EntityTypeBuilder<Guide> entity)
+        {
+            entity.ToTable("Guides");
+            entity.Property(guide => guide.Title).IsRequired().HasMaxLength(200);
+            entity.Property(guide => guide.Slug).IsRequired().HasMaxLength(200);
+            entity.Property(guide => guide.Summary).HasMaxLength(500);
+            entity.Property(guide => guide.ContentHtml).IsRequired();
+            entity.Property(guide => guide.CoverUrl).HasMaxLength(500);
+            entity.Property(guide => guide.Level).HasMaxLength(50);
+            entity.Property(guide => guide.Expansion).HasMaxLength(50);
+
+            entity.HasIndex(guide => guide.Slug).IsUnique();
+            entity.HasIndex(guide => new { guide.IsPublished, guide.PublishedAt });
+
+            entity.HasOne(guide => guide.Category)
+                .WithMany(category => category.Guides)
+                .HasForeignKey(guide => guide.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(guide => guide.Author)
+                .WithMany()
+                .HasForeignKey(guide => guide.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        }
+
+        private static void ConfigureGuideMedia(EntityTypeBuilder<GuideMedia> entity)
+        {
+            entity.ToTable("GuideMedia");
+            entity.Property(media => media.Provider).IsRequired().HasMaxLength(50);
+            entity.Property(media => media.Url).IsRequired().HasMaxLength(500);
+            entity.Property(media => media.ExternalId).HasMaxLength(100);
+            entity.Property(media => media.Caption).HasMaxLength(300);
+            entity.Property(media => media.MediaType)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(20);
+
+            entity.HasIndex(media => new { media.GuideId, media.SortOrder });
+
+            entity.HasOne(media => media.Guide)
+                .WithMany(guide => guide.Media)
+                .HasForeignKey(media => media.GuideId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
@@ -117,6 +175,9 @@ namespace Black_order.Data
         public DbSet<CartItem> CartItems => Set<CartItem>();
         public DbSet<Favorite> Favorites => Set<Favorite>();
         public DbSet<FavoriteItems> FavoriteItems => Set<FavoriteItems>();
+        public DbSet<Guide> Guides => Set<Guide>();
+        public DbSet<GuideCategory> GuideCategories => Set<GuideCategory>();
+        public DbSet<GuideMedia> GuideMediaItems => Set<GuideMedia>();
 
     }
 }
