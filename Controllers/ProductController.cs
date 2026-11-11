@@ -1,4 +1,4 @@
-﻿using Black_order.DTOs.CategoryDTOs;
+using Black_order.DTOs.CategoryDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Models;
 using Black_order.Repositories.Products;
@@ -94,13 +94,7 @@ namespace Black_order.Controllers
                 return BadRequest(ModelState);
             }
 
-            var userId = await userService.GetUserId();
-
-            if (userId == null)
-            {
-                return Unauthorized(new { message = "User not authorized" });
-            }
-
+            var userId = await userService.RequireUserId();
 
             // Check if the model state is valid, if not return a BadRequest response with the model state errors
             if (!ModelState.IsValid) { return BadRequest(ModelState); }

@@ -1,4 +1,4 @@
-﻿using Black_order.DTOs.CartDTOs;
+using Black_order.DTOs.CartDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Repositories.Carts;
 using Black_order.Services.UserServices;
@@ -28,14 +28,8 @@ namespace Black_order.Controllers
         [HttpGet("GetCart")]
         public async Task<IActionResult> GetCart()
         {
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
 
-
-
-            if(userId is null)
-            {
-                return Unauthorized(new { message = "User is not authenticated." });
-            }
             var cart = await cartRepository.GetByUserIdAsync(userId);
 
             if (cart is null)
@@ -64,7 +58,7 @@ namespace Black_order.Controllers
                 return BadRequest(ModelState);
             }
 
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var products = await cartRepository.GetProductsByIdsAsync([dto.ProductId]);
             var product = products.FirstOrDefault();
 
@@ -108,7 +102,7 @@ namespace Black_order.Controllers
         [HttpDelete("RemoveItem/{productId}")]
         public async Task<IActionResult> RemoveItem(string productId)
         {
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var cart = await cartRepository.GetTrackedByUserIdAsync(userId);
             if (cart is null)
             {
@@ -130,7 +124,7 @@ namespace Black_order.Controllers
         [HttpDelete("RemoveOneItem/{id}")]
         public async Task<IActionResult> RemoveOneItem(string id)
         {
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var cart = await cartRepository.GetTrackedByUserIdAsync(userId);
             if (cart is null)
             {
@@ -160,7 +154,7 @@ namespace Black_order.Controllers
         [HttpDelete("ClearCart")]
         public async Task<IActionResult> ClearCart()
         {
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var cart = await cartRepository.GetTrackedByUserIdAsync(userId);
             if (cart is null || cart.Items.Count == 0)
             {
@@ -209,7 +203,7 @@ namespace Black_order.Controllers
                 return BadRequest(new { message = "One or more products are not available." });
             }
 
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var cart = await cartRepository.GetTrackedByUserIdAsync(userId);
             if (cart is null)
             {

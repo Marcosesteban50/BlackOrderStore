@@ -1,4 +1,4 @@
-﻿using Black_order.Data;
+using Black_order.Data;
 using Black_order.DTOs.FavoriteDTOs;
 using Black_order.Repositories.Favorites;
 using Black_order.Services.UserServices;
@@ -29,7 +29,7 @@ namespace Black_order.Controllers
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var userId = await userService.GetUserId();
+            var userId = await userService.RequireUserId();
             var favorite = await favoriteRepository.GetByUserIdAsync(userId);
 
             if (favorite is null)

@@ -7,6 +7,7 @@ using Black_order.Repositories.Profiles;
 using Black_order.Repositories.Users;
 using Black_order.Services.Files;
 using Black_order.Services.UserServices;
+using Black_order.Utilities.Errors;
 using Google;
 using Mapster;
 using MapsterMapper;
@@ -27,6 +28,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
+
+// Global error handling: every handled exception becomes an RFC 7807 ProblemDetails.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 //builder.Services.AddOpenApi();
 
@@ -154,6 +159,9 @@ builder.Services.AddHttpContextAccessor();
 
 
 var app = builder.Build();
+
+// Must run first so it wraps every downstream middleware and endpoint.
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

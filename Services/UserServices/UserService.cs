@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 
 namespace Black_order.Services.UserServices
@@ -18,35 +18,27 @@ namespace Black_order.Services.UserServices
             this.configuration = configuration;
         }
 
-        public async Task<string> GetUserId()
+        public async Task<string?> GetUserId()
         {
+            var user = httpContextAccessor.HttpContext?.User;
 
-
-            // Get the email claim from the current user's claims
-            var email = httpContextAccessor.HttpContext!.User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Email || x.Type == "email")!.Value;
-
-
-            // Check if the email is null or empty and throw an exception if it is
-            if (string.IsNullOrEmpty(email))
+            if (user?.Identity?.IsAuthenticated != true)
             {
-                throw new ApplicationException("Authentication required");
+                return null;
+            }
 
+            // JWT emails can arrive as either mapping depending on token configuration.
+            var email = user.FindFirst(ClaimTypes.Email)?.Value
+                ?? user.FindFirst("email")?.Value;
 
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return null;
             }
 
             var usuario = await userManager.FindByEmailAsync(email);
 
-            if (usuario == null)
-            {
-                throw new ApplicationException("Not Found");
-
-            }
-
-            return usuario!.Id;
+            return usuario?.Id;
         }
-
-
-
-
     }
 }
