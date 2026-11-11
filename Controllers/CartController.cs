@@ -183,7 +183,7 @@ namespace Black_order.Controllers
             foreach (var item in items)
             {
                 requestedAmounts.TryGetValue(item.ProductId, out var currentAmount);
-                var combinedAmount = currentAmount + item.Amount;
+                var combinedAmount = currentAmount + item.Quantity;
                 if (combinedAmount > int.MaxValue)
                 {
                     return BadRequest(new { message = "The requested amount is too large." });

@@ -8,5 +8,5 @@ public class SyncCartDTO
     public string ProductId { get; set; } = null!;
 
     [Range(1, int.MaxValue)]
-    public int Amount { get; set; }
+    public int Quantity { get; set; }
 }
