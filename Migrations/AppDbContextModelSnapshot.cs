@@ -397,6 +397,44 @@ namespace Black_order.Migrations
                     b.ToTable("CartItems");
                 });
 
+            modelBuilder.Entity("Models.Favorite.Favorite", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Favorites");
+                });
+
+            modelBuilder.Entity("Models.Favorite.FavoriteItems", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("FavoriteId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FavoriteId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("FavoriteItems");
+                });
+
             modelBuilder.Entity("Black_order.DTOs.UserDTOs.UserProfile", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
@@ -527,6 +565,36 @@ namespace Black_order.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Models.Favorite.Favorite", b =>
+                {
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Models.Favorite.FavoriteItems", b =>
+                {
+                    b.HasOne("Models.Favorite.Favorite", "Favorite")
+                        .WithMany("Items")
+                        .HasForeignKey("FavoriteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Black_order.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Favorite");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("Black_order.Models.Category", b =>
                 {
                     b.Navigation("Images");
@@ -540,6 +608,11 @@ namespace Black_order.Migrations
                 });
 
             modelBuilder.Entity("Models.Cart.Cart", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Models.Favorite.Favorite", b =>
                 {
                     b.Navigation("Items");
                 });
