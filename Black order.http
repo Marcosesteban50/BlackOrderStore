@@ -44,3 +44,32 @@ Authorization: Bearer {{token}}
 
 # Crear y editar son multipart/form-data (portada + campos).
 # Usa Swagger UI (POST /api/Guide y PUT /api/Guide/{id}) para probarlos con archivo.
+
+### Registrar vista (publico, best effort)
+POST {{baseUrl}}/api/Guide/subir-nivel-1-80-rapido/view
+
+### Crear categoria de guias
+POST {{baseUrl}}/api/Guide/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "PvP",
+  "description": "Guias de jugador contra jugador",
+  "sortOrder": 4
+}
+
+### Editar categoria de guias
+PUT {{baseUrl}}/api/Guide/categories/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "PvP",
+  "description": "Guias de jugador contra jugador",
+  "sortOrder": 4
+}
+
+### Eliminar categoria de guias (las guias quedan sin categoria)
+DELETE {{baseUrl}}/api/Guide/categories/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}

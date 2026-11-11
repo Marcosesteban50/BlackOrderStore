@@ -78,6 +78,92 @@ namespace Black_order.Controllers
             return Ok(mapper.Map<List<GuideCategoryDTO>>(categories));
         }
 
+        // POST: api/Guide/categories
+        [HttpPost("categories")]
+        [Authorize(Policy = "Admin")]
+        public async Task<ActionResult<GuideCategoryDTO>> CreateCategory(
+            [FromBody] SaveGuideCategoryDTO dto,
+            CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var category = new GuideCategory
+            {
+                Name = dto.Name.Trim(),
+                Slug = await BuildUniqueCategorySlugAsync(dto.Slug, dto.Name, null, cancellationToken),
+                Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+                SortOrder = dto.SortOrder
+            };
+
+            await guideRepository.AddCategoryAsync(category, cancellationToken);
+            await guideRepository.SaveChangesAsync(cancellationToken);
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetCategories),
+                new { },
+                mapper.Map<GuideCategoryDTO>(category));
+        }
+
+        // PUT: api/Guide/categories/{id}
+        [HttpPut("categories/{id}")]
+        [Authorize(Policy = "Admin")]
+        public async Task<ActionResult<GuideCategoryDTO>> UpdateCategory(
+            string id,
+            [FromBody] SaveGuideCategoryDTO dto,
+            CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var category = await guideRepository.GetTrackedCategoryByIdAsync(id, cancellationToken);
+
+            if (category is null)
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status404NotFound,
+                    title: "Category not found",
+                    detail: $"No guide category exists with id '{id}'.");
+            }
+
+            category.Name = dto.Name.Trim();
+            category.Slug = await BuildUniqueCategorySlugAsync(dto.Slug, dto.Name, category.Id, cancellationToken);
+            category.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+            category.SortOrder = dto.SortOrder;
+
+            await guideRepository.SaveChangesAsync(cancellationToken);
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
+
+            return Ok(mapper.Map<GuideCategoryDTO>(category));
+        }
+
+        // DELETE: api/Guide/categories/{id}
+        [HttpDelete("categories/{id}")]
+        [Authorize(Policy = "Admin")]
+        public async Task<IActionResult> DeleteCategory(string id, CancellationToken cancellationToken)
+        {
+            var category = await guideRepository.GetTrackedCategoryByIdAsync(id, cancellationToken);
+
+            if (category is null)
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status404NotFound,
+                    title: "Category not found",
+                    detail: $"No guide category exists with id '{id}'.");
+            }
+
+            guideRepository.RemoveCategory(category);
+            await guideRepository.SaveChangesAsync(cancellationToken);
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
+
+            return NoContent();
+        }
+
         // GET: api/Guide/guia-rapida-1-80
         [HttpGet("{slug}", Name = "GetGuideBySlug")]
         [AllowAnonymous]
@@ -97,6 +183,17 @@ namespace Black_order.Controllers
             }
 
             return Ok(mapper.Map<GuideDTO>(guide));
+        }
+
+        // POST: api/Guide/{slug}/view
+        [HttpPost("{slug}/view")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RegisterView(string slug, CancellationToken cancellationToken)
+        {
+            // Best effort: the public page calls this once per visit and the cache is not evicted.
+            await guideRepository.IncrementViewCountAsync(slug, cancellationToken);
+
+            return NoContent();
         }
 
         // GET: api/Guide/manage?page=1&pageSize=10&search=
@@ -387,6 +484,24 @@ namespace Black_order.Controllers
             }
 
             return candidate.Length <= 200 ? candidate : candidate[..200].Trim('-');
+        }
+
+        private async Task<string> BuildUniqueCategorySlugAsync(
+            string? requestedSlug,
+            string name,
+            string? excludeId,
+            CancellationToken cancellationToken)
+        {
+            var baseSlug = SlugGenerator.Create(string.IsNullOrWhiteSpace(requestedSlug) ? name : requestedSlug);
+            var candidate = baseSlug;
+            var suffix = 2;
+
+            while (await guideRepository.CategorySlugExistsAsync(candidate, excludeId, cancellationToken))
+            {
+                candidate = $"{baseSlug}-{suffix++}";
+            }
+
+            return candidate.Length <= 120 ? candidate : candidate[..120].Trim('-');
         }
     }
 }

@@ -78,6 +78,46 @@ public sealed class GuideRepository(AppDbContext dbContext) : IGuideRepository
 
     public void Remove(Guide guide) => dbContext.Guides.Remove(guide);
 
+    public Task<int> IncrementViewCountAsync(
+        string slug,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.Guides
+            .Where(guide => guide.Slug == slug && guide.IsPublished)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    guide => guide.ViewCount,
+                    guide => guide.ViewCount + 1),
+                cancellationToken);
+    }
+
+    public Task<GuideCategory?> GetTrackedCategoryByIdAsync(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.GuideCategories
+            .FirstOrDefaultAsync(category => category.Id == id, cancellationToken);
+    }
+
+    public Task<bool> CategorySlugExistsAsync(
+        string slug,
+        string? excludeId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.GuideCategories.AnyAsync(
+            category => category.Slug == slug && (excludeId == null || category.Id != excludeId),
+            cancellationToken);
+    }
+
+    public Task AddCategoryAsync(
+        GuideCategory category,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.GuideCategories.AddAsync(category, cancellationToken).AsTask();
+    }
+
+    public void RemoveCategory(GuideCategory category) => dbContext.GuideCategories.Remove(category);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);

@@ -37,5 +37,18 @@ public interface IGuideRepository
 
     void Remove(Guide guide);
 
+    Task<int> IncrementViewCountAsync(string slug, CancellationToken cancellationToken = default);
+
+    Task<GuideCategory?> GetTrackedCategoryByIdAsync(string id, CancellationToken cancellationToken = default);
+
+    Task<bool> CategorySlugExistsAsync(
+        string slug,
+        string? excludeId = null,
+        CancellationToken cancellationToken = default);
+
+    Task AddCategoryAsync(GuideCategory category, CancellationToken cancellationToken = default);
+
+    void RemoveCategory(GuideCategory category);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
