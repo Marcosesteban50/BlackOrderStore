@@ -14,13 +14,14 @@ La cadena vive en `appsettings.Development.json` (no versionado):
 
 ```json
 "ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=BlackOrderStore;Integrated Security=True;TrustServerCertificate=True"
+  "DefaultConnection": "Server=lpc:(local);Database=BlackOrderStore;Integrated Security=True;TrustServerCertificate=True"
 }
 ```
 
-> Importante: `Microsoft.Data.SqlClient` (el driver de EF Core) **no usa Shared Memory**.
-> Necesita TCP/IP o Named Pipes habilitados en SQL Server Configuration Manager.
-> Si solo está Shared Memory, `sqlcmd` conectará pero la API fallará con error 40 (Named Pipes).
+> Importante: `Microsoft.Data.SqlClient` (el driver de EF Core) **no usa Shared Memory por defecto**.
+> El prefijo `lpc:` fuerza el protocolo de memoria compartida y funciona sin tocar SQL Server.
+> Si prefieres TCP: habilita TCP/IP en SQL Server Configuration Manager (puerto 1433) y usa
+> `Server=localhost`. Con Named Pipes deshabilitado y sin `lpc:`, la API falla con error 40.
 
 Aplicar migraciones:
 
