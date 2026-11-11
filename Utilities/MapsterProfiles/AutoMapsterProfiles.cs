@@ -4,6 +4,7 @@ using Black_order.DTOs.GuideDTOs;
 using Black_order.DTOs.OrderDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.DTOs.ReviewDTOs;
+using Black_order.DTOs.UserDTOs;
 using Black_order.Models;
 using Black_order.Models.Guides;
 using Black_order.Models.Orders;
@@ -117,6 +118,18 @@ namespace Black_order.Utilities.MapsterProfiles
                 .Map(itemDTO => itemDTO.Images, item => item.Product != null
                     ? item.Product.Images.Select(image => image.Url).ToList()
                     : new List<string>());
+
+
+            /*******************************PROFILE*******************************/
+            config.NewConfig<UserProfile, UserProfileDTO>()
+                .Map(profileDTO => profileDTO.Name, profile => profile.FullName ?? string.Empty);
+
+            config.NewConfig<UserProfileDTO, UserProfile>()
+                .Ignore(profile => profile.Id)
+                .Ignore(profile => profile.UserId)
+                .Ignore(profile => profile.User)
+                .Ignore(profile => profile.Email)
+                .Map(profile => profile.FullName, dto => dto.Name);
 
 
         }

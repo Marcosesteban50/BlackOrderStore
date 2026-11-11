@@ -6,10 +6,6 @@ namespace Black_order.DTOs.OrderDTOs
 
         public decimal Discount { get; set; }
 
-        public string CustomerName { get; set; } = string.Empty;
-
-        public string CustomerEmail { get; set; } = string.Empty;
-
         public string? CustomerDiscord { get; set; }
 
         public string? CharacterName { get; set; }

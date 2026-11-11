@@ -11,6 +11,10 @@ namespace Black_order.DTOs.OrderDTOs
 
         public string PaymentMethod { get; set; } = string.Empty;
 
+        public string CustomerName { get; set; } = string.Empty;
+
+        public string CustomerEmail { get; set; } = string.Empty;
+
         public decimal Total { get; set; }
 
         public int ItemCount { get; set; }

@@ -65,6 +65,8 @@ public sealed class AdminRepository(AppDbContext dbContext) : IAdminRepository
                 Status = order.Status.ToString(),
                 PaymentStatus = order.PaymentStatus.ToString(),
                 PaymentMethod = order.PaymentMethod,
+                CustomerName = order.CustomerName,
+                CustomerEmail = order.CustomerEmail,
                 Total = order.Total,
                 ItemCount = order.Items.Count,
                 CreatedAt = order.CreatedAt

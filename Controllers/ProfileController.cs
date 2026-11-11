@@ -77,9 +77,9 @@ namespace Black_order.Controllers
                 ? userProfile.FullName
                 : userProfileDto.Name.Trim();
 
-            userProfile.Address = string.IsNullOrWhiteSpace(userProfileDto.Adress)
+            userProfile.Address = string.IsNullOrWhiteSpace(userProfileDto.Address)
                 ? userProfile.Address
-                : userProfileDto.Adress.Trim();
+                : userProfileDto.Address.Trim();
 
             userProfile.Phone = string.IsNullOrWhiteSpace(userProfileDto.Phone)
                 ? userProfile.Phone

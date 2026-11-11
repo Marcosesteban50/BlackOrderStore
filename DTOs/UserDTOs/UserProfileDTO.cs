@@ -3,7 +3,7 @@ namespace Black_order.DTOs.UserDTOs
     public class UserProfileDTO
     {
 
-        public string Adress { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
         public string Phone { get; set; } = string.Empty;
         public string NickName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
