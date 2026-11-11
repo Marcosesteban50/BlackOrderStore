@@ -92,10 +92,20 @@ builder.Services.AddIdentityCore<IdentityUser>(options =>
 
 
 //Dbcontext configuration
+// SQL Server is the production provider; SQLite is available for local/test runs
+// via Database:Provider=Sqlite (no SQL Server instance required).
+var databaseProvider = builder.Configuration["Database:Provider"] ?? "SqlServer";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<AppDbContext>(o =>
 {
+    if (string.Equals(databaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        o.UseSqlite(connectionString);
+        return;
+    }
 
-    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    o.UseSqlServer(connectionString);
 });
 
 
@@ -233,6 +243,13 @@ app.UseAuthorization();
 
 app.UseOutputCache();
 app.MapControllers();
+
+if (string.Equals(databaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+{
+    // SQLite has no SQL Server migrations; create the schema from the model.
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+}
 
 if (app.Environment.IsDevelopment())
 {

@@ -7,6 +7,7 @@ using Black_order.Models.Reviews;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Models.Cart;
 using Models.Favorite;
 
@@ -38,6 +39,25 @@ namespace Black_order.Data
             ConfigureOrder(modelBuilder.Entity<Order>());
             ConfigureOrderItem(modelBuilder.Entity<OrderItem>());
             ConfigureReview(modelBuilder.Entity<Review>());
+
+            // SQLite cannot ORDER BY DateTimeOffset. Store it as a binary/long value
+            // for the local/test provider only; SQL Server keeps datetimeoffset.
+            if (Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var converter = new DateTimeOffsetToBinaryConverter();
+
+                foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+                {
+                    foreach (var property in entityType.GetProperties())
+                    {
+                        if (property.ClrType == typeof(DateTimeOffset) ||
+                            property.ClrType == typeof(DateTimeOffset?))
+                        {
+                            property.SetValueConverter(converter);
+                        }
+                    }
+                }
+            }
         }
 
         private static void ConfigureProduct(EntityTypeBuilder<Product> entity)
