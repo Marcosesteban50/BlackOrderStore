@@ -253,6 +253,8 @@ if (string.Equals(databaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase
 
 if (app.Environment.IsDevelopment())
 {
+    await DevAdminSeeder.SeedAsync(app.Services, builder.Configuration, app.Logger);
+
     // Seed after the server is listening: a slow or unavailable database must not
     // delay startup. The seeder catches and logs its own errors.
     app.Lifetime.ApplicationStarted.Register(() =>
