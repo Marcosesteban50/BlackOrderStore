@@ -1,9 +1,15 @@
 using Black_order.DTOs.CategoryDTOs;
+using Black_order.DTOs.FavoriteDTOs;
 using Black_order.DTOs.GuideDTOs;
+using Black_order.DTOs.OrderDTOs;
 using Black_order.DTOs.ProductDTOs;
+using Black_order.DTOs.ReviewDTOs;
 using Black_order.Models;
 using Black_order.Models.Guides;
+using Black_order.Models.Orders;
+using Black_order.Models.Reviews;
 using Mapster;
+using Models.Favorite;
 
 namespace Black_order.Utilities.MapsterProfiles
 {
@@ -80,6 +86,37 @@ namespace Black_order.Utilities.MapsterProfiles
                 .Map(guide => guide.CategoryId, dto => string.IsNullOrWhiteSpace(dto.CategoryId) ? null : dto.CategoryId)
                 .Map(guide => guide.Level, dto => string.IsNullOrWhiteSpace(dto.Level) ? null : dto.Level)
                 .Map(guide => guide.Expansion, dto => string.IsNullOrWhiteSpace(dto.Expansion) ? null : dto.Expansion);
+
+
+            /*******************************ORDERS*******************************/
+            config.NewConfig<Order, OrderSummaryDTO>()
+                .Map(orderDTO => orderDTO.Status, order => order.Status.ToString())
+                .Map(orderDTO => orderDTO.PaymentStatus, order => order.PaymentStatus.ToString())
+                .Map(orderDTO => orderDTO.ItemCount, order => order.Items.Count);
+
+            config.NewConfig<Order, OrderDTO>()
+                .Map(orderDTO => orderDTO.Status, order => order.Status.ToString())
+                .Map(orderDTO => orderDTO.PaymentStatus, order => order.PaymentStatus.ToString())
+                .Map(orderDTO => orderDTO.ItemCount, order => order.Items.Count);
+
+            config.NewConfig<OrderItem, OrderItemDTO>()
+                .Map(itemDTO => itemDTO.ImageUrl, item =>
+                    item.Product != null && item.Product.Images.Count > 0
+                        ? item.Product.Images.First().Url
+                        : null);
+
+            /*******************************REVIEWS*******************************/
+            config.NewConfig<Review, ReviewDTO>()
+                .Map(reviewDTO => reviewDTO.UserName, review =>
+                    review.User != null ? review.User.UserName ?? string.Empty : string.Empty);
+
+            /*******************************FAVORITES*******************************/
+            config.NewConfig<FavoriteItems, FavoriteItemDTO>()
+                .Map(itemDTO => itemDTO.ProductName, item => item.Product != null ? item.Product.Name : null)
+                .Map(itemDTO => itemDTO.Price, item => item.Product != null ? item.Product.Price : 0)
+                .Map(itemDTO => itemDTO.Images, item => item.Product != null
+                    ? item.Product.Images.Select(image => image.Url).ToList()
+                    : new List<string>());
 
 
         }

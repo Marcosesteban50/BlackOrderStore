@@ -6,6 +6,8 @@ namespace Black_order.Repositories.Products;
 public interface IProductRepository
 {
     Task<List<Product>> GetAllAsync();
+    Task<List<Product>> GetApprovedAsync();
+    Task<List<Product>> GetBySellerAsync(string sellerId);
     Task<Product?> GetByIdAsync(string id);
     Task<Product?> GetTrackedByIdAsync(string id);
     Task<Product?> GetByIdWithImagesAsync(string id);

@@ -16,6 +16,8 @@ namespace Black_order.DTOs.ProductDTOs
 
         public decimal Price { get; set; }
 
+        public int Stock { get; set; }
+
         //public string? ImagenUrl { get; set; }
 
         //we are reading the List 

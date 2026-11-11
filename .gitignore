@@ -11,3 +11,8 @@ obj/
 # Secretos locales (usar appsettings.Development.example.json)
 appsettings.Development.json
 
+
+# Tooling local
+.tools-new/
+.msbuild-cache/
+

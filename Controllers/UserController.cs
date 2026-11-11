@@ -1,4 +1,4 @@
-﻿using Black_order.DTOs.GoogleDTOs;
+using Black_order.DTOs.GoogleDTOs;
 using Black_order.DTOs.UserDTOs;
 using Black_order.Repositories.Profiles;
 using Black_order.Repositories.Users;
@@ -9,6 +9,7 @@ using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -44,7 +45,7 @@ namespace Black_order.Controllers
 
         // GET: api/User/UserList
         [HttpGet("UserList")]
-        [AllowAnonymous]
+        [Authorize(Policy = "Admin")]
         public async Task<ActionResult<List<UserDTO>>> UserList()
         {
             var users = await userRepository.GetUsersWithClaimsAsync();
@@ -53,6 +54,7 @@ namespace Black_order.Controllers
 
         // POST: api/User/Sign-Up
         [AllowAnonymous]
+        [EnableRateLimiting("auth")]
         [HttpPost("Sign-Up")]
         public async Task<ActionResult<AuthResponseDTO>> SignUp(UserCredentialsDTO userCredentialsDTO)
         {
@@ -93,6 +95,7 @@ namespace Black_order.Controllers
 
         // POST: api/User/Login
         [AllowAnonymous]
+        [EnableRateLimiting("auth")]
         [HttpPost("Login")]
         public async Task<ActionResult<AuthResponseDTO>> Login(UserLoginDTO userCredentialsDTO)
         {
@@ -158,7 +161,7 @@ namespace Black_order.Controllers
 
         // POST: api/User/MakeAdmin
         [HttpPost("MakeAdmin")]
-        [AllowAnonymous]
+        [Authorize(Policy = "Admin")]
         public async Task<IActionResult> MakeAdmin(EditClaimDTO editClaimDTO)
         {
             // Find user target for promotion
@@ -204,6 +207,7 @@ namespace Black_order.Controllers
 
         // POST: api/User/google-login
         [AllowAnonymous]
+        [EnableRateLimiting("auth")]
         [HttpPost("google-login")]
         public async Task<ActionResult<CompleteAuthResponseDTO>> GoogleLogin([FromBody] GoogleLoginRequestDTO request)
         {

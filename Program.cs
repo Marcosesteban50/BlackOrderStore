@@ -1,12 +1,17 @@
 using Black_order.Data;
+using Black_order.Repositories.Admin;
 using Black_order.Repositories.Categories;
 using Black_order.Repositories.Carts;
 using Black_order.Repositories.Favorites;
 using Black_order.Repositories.Guides;
+using Black_order.Repositories.Orders;
 using Black_order.Repositories.Products;
 using Black_order.Repositories.Profiles;
+using Black_order.Repositories.Reviews;
 using Black_order.Repositories.Users;
 using Black_order.Services.Files;
+using Black_order.Services.Orders;
+using Black_order.Services.Payments;
 using Black_order.Services.UserServices;
 using Black_order.Utilities.Errors;
 using Google;
@@ -14,6 +19,7 @@ using Mapster;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -117,6 +123,20 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IGuideRepository, GuideRepository>();
 builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+
+// Payments: Stripe only when a secret key is configured, otherwise manual flow.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Stripe:SecretKey"]))
+{
+    builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+}
+else
+{
+    builder.Services.AddScoped<IPaymentService, ManualPaymentService>();
+}
 
 
 builder.Services.AddAuthentication(x =>
@@ -146,7 +166,22 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("User", policy => policy.RequireClaim("User"));
     options.AddPolicy("AdminOrUser", policy => policy.RequireClaim("Admin", "User"));
     options.AddPolicy("Seller", policy => policy.RequireClaim("Seller"));
+    options.AddPolicy("SellerOrAdmin", policy => policy.RequireAssertion(context =>
+        context.User.HasClaim(claim => claim.Type == "Seller") ||
+        context.User.HasClaim(claim => claim.Type == "Admin")));
     options.AddPolicy("Customer", policy => policy.RequireClaim("Customer"));
+});
+
+// Brute-force protection on the auth endpoints.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("auth", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
 });
 
 
@@ -187,6 +222,7 @@ app.UseSwagger();
 
 app.UseHttpsRedirection();
 app.UseCors();
+app.UseRateLimiter();
 
 app.UseStaticFiles();
 

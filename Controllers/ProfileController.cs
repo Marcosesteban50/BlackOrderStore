@@ -1,4 +1,4 @@
-﻿using Black_order.DTOs.UserDTOs;
+using Black_order.DTOs.UserDTOs;
 using Black_order.Repositories.Profiles;
 using Black_order.Services.UserServices;
 using MapsterMapper;
@@ -73,8 +73,21 @@ namespace Black_order.Controllers
                 return NotFound();
             }
 
-            // Update the userProfile entity with the values from userProfileDto
-            // (Assuming you have a method to update the entity)
+            userProfile.FullName = string.IsNullOrWhiteSpace(userProfileDto.Name)
+                ? userProfile.FullName
+                : userProfileDto.Name.Trim();
+
+            userProfile.Address = string.IsNullOrWhiteSpace(userProfileDto.Adress)
+                ? userProfile.Address
+                : userProfileDto.Adress.Trim();
+
+            userProfile.Phone = string.IsNullOrWhiteSpace(userProfileDto.Phone)
+                ? userProfile.Phone
+                : userProfileDto.Phone.Trim();
+
+            userProfile.NickName = string.IsNullOrWhiteSpace(userProfileDto.NickName)
+                ? userProfile.NickName
+                : userProfileDto.NickName.Trim();
 
             await profileRepository.SaveChangesAsync();
 

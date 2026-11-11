@@ -13,6 +13,21 @@ public sealed class ProductRepository(AppDbContext dbContext) : IProductReposito
         .Include(product => product.Images)
         .ToListAsync();
 
+    public Task<List<Product>> GetApprovedAsync() => dbContext.Products
+        .AsNoTracking()
+        .Where(product => product.Approved)
+        .Include(product => product.Category)
+        .Include(product => product.Images)
+        .OrderByDescending(product => product.Id)
+        .ToListAsync();
+
+    public Task<List<Product>> GetBySellerAsync(string sellerId) => dbContext.Products
+        .AsNoTracking()
+        .Where(product => product.UserId == sellerId)
+        .Include(product => product.Category)
+        .Include(product => product.Images)
+        .ToListAsync();
+
     public Task<Product?> GetByIdAsync(string id) => dbContext.Products
         .AsNoTracking()
         .Include(product => product.Category)
@@ -41,7 +56,7 @@ public sealed class ProductRepository(AppDbContext dbContext) : IProductReposito
     {
         var query = dbContext.Products
             .AsNoTracking()
-            .Where(product => product.Available);
+            .Where(product => product.Available && product.Approved);
 
         if (!string.IsNullOrWhiteSpace(filter.Name))
         {

@@ -13,6 +13,9 @@ namespace Black_order.Models
 
         public decimal Price { get; set; }
 
+        /// <summary>Unidades disponibles. Se descuenta al confirmar una orden.</summary>
+        public int Stock { get; set; } = 100;
+
         //public string? ImagenUrl { get; set; }
         public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
         public string? CategoryId { get; set; }

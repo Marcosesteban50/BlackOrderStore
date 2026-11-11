@@ -14,9 +14,29 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var status = exception is UnauthorizedAccessException
-            ? StatusCodes.Status401Unauthorized
-            : StatusCodes.Status500InternalServerError;
+        var (status, title, detail) = exception switch
+        {
+            UnauthorizedAccessException => (
+                StatusCodes.Status401Unauthorized,
+                "Unauthorized",
+                "Authentication is required."),
+            KeyNotFoundException => (
+                StatusCodes.Status404NotFound,
+                "Not found",
+                exception.Message),
+            InvalidOperationException => (
+                StatusCodes.Status400BadRequest,
+                "Invalid operation",
+                exception.Message),
+            ArgumentException => (
+                StatusCodes.Status400BadRequest,
+                "Invalid request",
+                exception.Message),
+            _ => (
+                StatusCodes.Status500InternalServerError,
+                "Internal server error",
+                "An unexpected error occurred.")
+        };
 
         if (status == StatusCodes.Status500InternalServerError)
         {
@@ -26,18 +46,23 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 httpContext.Request.Method,
                 httpContext.Request.Path);
         }
+        else
+        {
+            logger.LogWarning(
+                "Request {Method} {Path} failed with {Status}: {Message}",
+                httpContext.Request.Method,
+                httpContext.Request.Path,
+                status,
+                exception.Message);
+        }
 
         httpContext.Response.StatusCode = status;
 
         var problem = new ProblemDetails
         {
             Status = status,
-            Title = status == StatusCodes.Status401Unauthorized
-                ? "Unauthorized"
-                : "Internal server error",
-            Detail = status == StatusCodes.Status401Unauthorized
-                ? exception.Message
-                : "An unexpected error occurred.",
+            Title = title,
+            Detail = detail,
             Instance = httpContext.Request.Path
         };
 

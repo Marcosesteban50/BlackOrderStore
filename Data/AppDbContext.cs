@@ -2,6 +2,8 @@
 using Black_order.DTOs.UserDTOs;
 using Black_order.Models;
 using Black_order.Models.Guides;
+using Black_order.Models.Orders;
+using Black_order.Models.Reviews;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -33,6 +35,9 @@ namespace Black_order.Data
             ConfigureGuideCategory(modelBuilder.Entity<GuideCategory>());
             ConfigureGuide(modelBuilder.Entity<Guide>());
             ConfigureGuideMedia(modelBuilder.Entity<GuideMedia>());
+            ConfigureOrder(modelBuilder.Entity<Order>());
+            ConfigureOrderItem(modelBuilder.Entity<OrderItem>());
+            ConfigureReview(modelBuilder.Entity<Review>());
         }
 
         private static void ConfigureProduct(EntityTypeBuilder<Product> entity)
@@ -166,6 +171,69 @@ namespace Black_order.Data
                 .OnDelete(DeleteBehavior.Cascade);
         }
 
+        private static void ConfigureOrder(EntityTypeBuilder<Order> entity)
+        {
+            entity.ToTable("Orders");
+            entity.Property(order => order.PaymentMethod).IsRequired().HasMaxLength(30);
+            entity.Property(order => order.PaymentReference).HasMaxLength(200);
+            entity.Property(order => order.CustomerName).IsRequired().HasMaxLength(150);
+            entity.Property(order => order.CustomerEmail).IsRequired().HasMaxLength(256);
+            entity.Property(order => order.CustomerDiscord).HasMaxLength(100);
+            entity.Property(order => order.CharacterName).HasMaxLength(100);
+            entity.Property(order => order.Realm).HasMaxLength(100);
+            entity.Property(order => order.Region).HasMaxLength(20);
+            entity.Property(order => order.Notes).HasMaxLength(1000);
+            entity.Property(order => order.Subtotal).HasPrecision(18, 2);
+            entity.Property(order => order.Discount).HasPrecision(18, 2);
+            entity.Property(order => order.Total).HasPrecision(18, 2);
+
+            entity.HasIndex(order => order.UserId);
+            entity.HasIndex(order => new { order.Status, order.CreatedAt });
+
+            entity.HasOne(order => order.User)
+                .WithMany()
+                .HasForeignKey(order => order.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(order => order.Items)
+                .WithOne(item => item.Order)
+                .HasForeignKey(item => item.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureOrderItem(EntityTypeBuilder<OrderItem> entity)
+        {
+            entity.ToTable("OrderItems");
+            entity.Property(item => item.ProductName).IsRequired().HasMaxLength(200);
+            entity.Property(item => item.UnitPrice).HasPrecision(18, 2);
+            entity.Property(item => item.LineTotal).HasPrecision(18, 2);
+
+            entity.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+        }
+
+        private static void ConfigureReview(EntityTypeBuilder<Review> entity)
+        {
+            entity.ToTable("Reviews", table =>
+                table.HasCheckConstraint("CK_Reviews_Rating", "[Rating] >= 1 AND [Rating] <= 5"));
+
+            entity.Property(review => review.Comment).HasMaxLength(1000);
+
+            entity.HasIndex(review => new { review.ProductId, review.UserId }).IsUnique();
+
+            entity.HasOne(review => review.Product)
+                .WithMany()
+                .HasForeignKey(review => review.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(review => review.User)
+                .WithMany()
+                .HasForeignKey(review => review.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
@@ -178,6 +246,9 @@ namespace Black_order.Data
         public DbSet<Guide> Guides => Set<Guide>();
         public DbSet<GuideCategory> GuideCategories => Set<GuideCategory>();
         public DbSet<GuideMedia> GuideMediaItems => Set<GuideMedia>();
+        public DbSet<Order> Orders => Set<Order>();
+        public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+        public DbSet<Review> Reviews => Set<Review>();
 
     }
 }

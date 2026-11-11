@@ -1,47 +1,96 @@
-using Black_order.Data;
 using Black_order.DTOs.FavoriteDTOs;
 using Black_order.Repositories.Favorites;
+using Black_order.Repositories.Products;
 using Black_order.Services.UserServices;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Models.Favorite;
 
 namespace Black_order.Controllers
 {
     [ApiController]
     [Route("api/[Controller]")]
     [Authorize]
-    public class FavoriteController : ControllerBase
+    public sealed class FavoriteController : ControllerBase
     {
-        private readonly IMapper mapper;
-        private readonly AppDbContext dbContext;
-        private readonly IUserService userService;
         private readonly IFavoriteRepository favoriteRepository;
+        private readonly IProductRepository productRepository;
+        private readonly IUserService userService;
+        private readonly IMapper mapper;
 
-        public FavoriteController(IMapper mapper,AppDbContext dbContext,IUserService userService, IFavoriteRepository favoriteRepository)
+        public FavoriteController(
+            IFavoriteRepository favoriteRepository,
+            IProductRepository productRepository,
+            IUserService userService,
+            IMapper mapper)
         {
-            this.mapper = mapper;
-            this.dbContext = dbContext;
-            this.userService = userService;
             this.favoriteRepository = favoriteRepository;
+            this.productRepository = productRepository;
+            this.userService = userService;
+            this.mapper = mapper;
         }
 
+        // GET: api/Favorite
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<ActionResult<FavoriteDTO>> Get(CancellationToken cancellationToken)
         {
             var userId = await userService.RequireUserId();
             var favorite = await favoriteRepository.GetByUserIdAsync(userId);
 
+            return Ok(favorite is null
+                ? new FavoriteDTO()
+                : mapper.Map<FavoriteDTO>(favorite));
+        }
+
+        // POST: api/Favorite/{productId}
+        [HttpPost("{productId}")]
+        public async Task<IActionResult> Add(string productId, CancellationToken cancellationToken)
+        {
+            var userId = await userService.RequireUserId();
+            var product = await productRepository.GetByIdAsync(productId);
+
+            if (product is null || !product.Approved)
+            {
+                return NotFound();
+            }
+
+            var favorite = await favoriteRepository.GetTrackedByUserIdAsync(userId);
+
             if (favorite is null)
             {
-                return NotFound(new { message = "Favorites not found." });
+                favorite = new Favorite { UserId = userId };
+                await favoriteRepository.AddAsync(favorite);
             }
-       
 
-          var dto = mapper.Map<FavoriteDTO>(favorite);
+            if (favorite.Items.Any(item => item.ProductId == productId))
+            {
+                return NoContent();
+            }
 
-            return Ok(dto);
+            favorite.Items.Add(new FavoriteItems { ProductId = productId });
+            await favoriteRepository.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // DELETE: api/Favorite/{productId}
+        [HttpDelete("{productId}")]
+        public async Task<IActionResult> Remove(string productId, CancellationToken cancellationToken)
+        {
+            var userId = await userService.RequireUserId();
+            var favorite = await favoriteRepository.GetTrackedByUserIdAsync(userId);
+            var item = favorite?.Items.FirstOrDefault(entry => entry.ProductId == productId);
+
+            if (item is null)
+            {
+                return NoContent();
+            }
+
+            favoriteRepository.RemoveItem(item);
+            await favoriteRepository.SaveChangesAsync();
+
+            return NoContent();
         }
     }
-    
 }

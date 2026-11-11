@@ -1,4 +1,3 @@
-using Black_order.DTOs.CategoryDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Models;
 using Black_order.Repositories.Products;
@@ -13,19 +12,23 @@ namespace Black_order.Controllers
 {
     [ApiController]
     [Route("api/[Controller]")]
-
-    public class ProductController : Controller
+    public sealed class ProductController : ControllerBase
     {
+        private const string CacheTag = "products";
+        private const string Container = "products";
+
         private readonly IMapper mapper;
         private readonly IOutputCacheStore outputCacheStore;
         private readonly IProductRepository productRepository;
         private readonly iFileStorage fileStorage;
         private readonly IUserService userService;
-        private const string cacheTag = "products";
-        private readonly string container = "products";
 
-        public ProductController(IMapper mapper, IOutputCacheStore outputCacheStore,
-            IProductRepository productRepository, iFileStorage fileStorage, IUserService userService)
+        public ProductController(
+            IMapper mapper,
+            IOutputCacheStore outputCacheStore,
+            IProductRepository productRepository,
+            iFileStorage fileStorage,
+            IUserService userService)
         {
             this.mapper = mapper;
             this.outputCacheStore = outputCacheStore;
@@ -34,225 +37,211 @@ namespace Black_order.Controllers
             this.userService = userService;
         }
 
-
-
+        // GET: api/Product/GetProducts (solo aprobados)
         [HttpGet("GetProducts")]
-        [OutputCache(Duration = 60, Tags = [cacheTag])]
         [AllowAnonymous]
-
-        public async Task<ActionResult<List<ProductDTO>>> Get()
+        [OutputCache(Duration = 60, Tags = [CacheTag])]
+        public async Task<ActionResult<List<ProductDTO>>> Get(CancellationToken cancellationToken)
         {
+            var products = await productRepository.GetApprovedAsync();
 
-            // Getting all products from the database 
-            var products = await productRepository.GetAllAsync();
-
-
-            //Mapping the products to ProductDTOs using Mapster
-
-
-            // Check if the productsDTOs is null and return a NotFound response if it is
-            if (products == null || products.Count == 0)
-            {
-                return NotFound(new { message = "No products found" });
-            }
-
-            var productsDTOs = mapper.Map<List<ProductDTO>>(products);
-            // Return the list of ProductDTOs
-            return productsDTOs;
+            return Ok(mapper.Map<List<ProductDTO>>(products));
         }
 
-        //GET PRODUCT BY ID
+        // GET: api/Product/{id}
         [HttpGet("{id}", Name = "GetProductById")]
-        [OutputCache(Duration = 60, Tags = [cacheTag])]
-        public async Task<ActionResult<ProductDTO>> Get(string id)
+        [AllowAnonymous]
+        public async Task<ActionResult<ProductDTO>> Get(string id, CancellationToken cancellationToken)
         {
-
             var product = await productRepository.GetByIdAsync(id);
 
-
-            if (product == null)
+            if (product is null)
             {
-                return NotFound(new { message = $"Product not found {id}" });
+                return NotFound();
             }
 
-            var productDTO = mapper.Map<ProductDTO>(product);
+            if (!product.Approved && !await CanManageAsync(product))
+            {
+                return NotFound();
+            }
 
-
-            return productDTO;
+            return Ok(mapper.Map<ProductDTO>(product));
         }
 
-
-
-
-        //ADD PRODUCT 
-        [HttpPost("Add-Product")]
-        public async Task<ActionResult<ProductDTO>> Post([FromForm] ProductCreateDTO productCreateDTO)
+        // GET: api/Product/Mine (productos del vendedor)
+        [HttpGet("Mine")]
+        [Authorize(Policy = "SellerOrAdmin")]
+        public async Task<ActionResult<List<ProductDTO>>> Mine(CancellationToken cancellationToken)
         {
+            var userId = await userService.RequireUserId();
+            var products = await productRepository.GetBySellerAsync(userId);
 
+            return Ok(mapper.Map<List<ProductDTO>>(products));
+        }
+
+        // POST: api/Product/Add-Product
+        [HttpPost("Add-Product")]
+        [Authorize(Policy = "SellerOrAdmin")]
+        public async Task<ActionResult<ProductDTO>> Post(
+            [FromForm] ProductCreateDTO productCreateDTO,
+            CancellationToken cancellationToken)
+        {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return ValidationProblem(ModelState);
             }
 
             var userId = await userService.RequireUserId();
+            var product = mapper.Map<Product>(productCreateDTO);
 
-            // Check if the model state is valid, if not return a BadRequest response with the model state errors
-            if (!ModelState.IsValid) { return BadRequest(ModelState); }
+            product.UserId = userId;
+            product.Approved = false;
+            product.Available = true;
+            product.Stock = productCreateDTO.Stock;
 
-
-            // Map the ProductCreateDTO to Product using Mapster
-            var products = mapper.Map<Product>(productCreateDTO);
-
-            products.UserId = userId;
-            products.Approved = false;
-            products.Available = true;
-
-
-            // Check if there are any images uploaded in the ProductCreateDTO
-            if (productCreateDTO.Images != null)
+            if (productCreateDTO.Images is not null)
             {
-                // Process the uploaded images
                 foreach (var item in productCreateDTO.Images)
                 {
-                    var url = await fileStorage.Storage(container, item);
+                    var url = await fileStorage.Storage(Container, item);
 
-                    products.Images.Add(
-                        new ProductImage
-                        {
-                            Url = url,
-                            ProductId = products.Id
-                        });
+                    product.Images.Add(new ProductImage
+                    {
+                        Url = url,
+                        ProductId = product.Id
+                    });
                 }
             }
 
-            // Add the new product to the database
-            await productRepository.AddAsync(products);
-
-            // Save the changes to the database
+            await productRepository.AddAsync(product);
             await productRepository.SaveChangesAsync();
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
 
-            // Evict the cache for products to ensure the newly created product is reflected in subsequent requests
-            await outputCacheStore.EvictByTagAsync(cacheTag, default);
+            var productDTO = mapper.Map<ProductDTO>(product);
+            productDTO.CategoryName = await productRepository.GetCategoryNameAsync(product.CategoryId);
 
-            // Map the newly created product to ProductDTO using Mapster
-
-
-            // Retrieve the category name for the newly created product and set it in the ProductDTO
-            var CategoryName = await productRepository.GetCategoryNameAsync(products.CategoryId);
-
-            //Map from product to ProductDTO to return that to the user
-            var productDTO = mapper.Map<ProductDTO>(products);
-            //Set the categoryName to the new product
-            productDTO.CategoryName = CategoryName;
-
-            //Return 201 created and generate a location header with the URL of the newly created resource
-            return CreatedAtAction(nameof(Get), new { id = productDTO.Id }, productDTO);
-
-
+            return CreatedAtAction(nameof(Get), new { id = product.Id }, productDTO);
         }
 
-
-        //EDIT PRODUCT BY ID
-
+        // PUT: api/Product/{id}
         [HttpPut("{id}")]
-        public async Task<ActionResult<ProductDTO>> Put(string id, [FromForm] ProductCreateDTO product)
+        [Authorize(Policy = "SellerOrAdmin")]
+        public async Task<ActionResult<ProductDTO>> Put(
+            string id,
+            [FromForm] ProductCreateDTO product,
+            CancellationToken cancellationToken)
         {
-            // Validate the incoming model
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return ValidationProblem(ModelState);
             }
 
-            //Verifying if the category exists in the database
             var productExists = await productRepository.GetTrackedByIdAsync(id);
 
-            // If the category does not exist, return a 404 Not Found response
-            if (productExists == null)
+            if (productExists is null)
             {
-                return NotFound(new { message = "Product not found" });
+                return NotFound();
             }
 
-            // Mapping CreateProductDTO to Product using Mapster
-            var productEntity = mapper.Map<Product>(product);
+            if (!await CanManageAsync(productExists))
+            {
+                return Forbid();
+            }
 
-            // Set the ID of the product entity to the provided ID
-            productEntity.Id = id;
+            productExists.Name = product.Name;
+            productExists.Description = product.Description;
+            productExists.Price = product.Price;
+            productExists.Stock = product.Stock;
+            productExists.CategoryId = product.CategoryId;
 
+            if (product.DeletedImages is not null)
+            {
+                foreach (var url in product.DeletedImages)
+                {
+                    var image = productExists.Images.FirstOrDefault(entry => entry.Url == url);
 
-            // Update the product in the database
-            productRepository.Update(productEntity);
+                    if (image is not null)
+                    {
+                        await fileStorage.Delete(image.Url, Container);
+                        productExists.Images.Remove(image);
+                    }
+                }
+            }
 
-            // Save changes to the database
+            if (product.Images is not null)
+            {
+                foreach (var file in product.Images)
+                {
+                    var url = await fileStorage.Storage(Container, file);
+
+                    productExists.Images.Add(new ProductImage
+                    {
+                        Url = url,
+                        ProductId = productExists.Id
+                    });
+                }
+            }
+
             await productRepository.SaveChangesAsync();
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
 
-            // Evict the cache for products to ensure the updated data is reflected
-            await outputCacheStore.EvictByTagAsync(cacheTag, default);
+            var productDTO = mapper.Map<ProductDTO>(productExists);
+            productDTO.CategoryName = await productRepository.GetCategoryNameAsync(productExists.CategoryId);
 
-            var productDTO = mapper.Map<ProductDTO>(productEntity);
-
-            // Retrieve the category name for the updated product and set it in the ProductDTO
-            productDTO.CategoryName = await productRepository.GetCategoryNameAsync(productDTO.CategoryId);
-
-
-
-            // Return the updated product DTO
             return Ok(productDTO);
         }
 
-
-        //DELETE PRODUCT BY ID
+        // DELETE: api/Product/{id}
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(string id)
+        [Authorize(Policy = "SellerOrAdmin")]
+        public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
         {
-
-            // Check if the product exists in the database
             var product = await productRepository.GetByIdWithImagesAsync(id);
 
-            // if there are no products in the database return a NotFound response
-            if (product == null)
+            if (product is null)
             {
-                return NotFound(new { message = "Product not found" });
+                return NotFound();
             }
 
-            foreach (var img in product.Images)
+            if (!await CanManageAsync(product))
             {
-                await fileStorage.Delete(img.Url, container);
+                return Forbid();
+            }
+
+            foreach (var image in product.Images)
+            {
+                await fileStorage.Delete(image.Url, Container);
             }
 
             productRepository.Remove(product);
             await productRepository.SaveChangesAsync();
-
-
-            // Evict the cache for products to ensure the deleted product is not reflected in subsequent requests
-            await outputCacheStore.EvictByTagAsync(cacheTag, default);
+            await outputCacheStore.EvictByTagAsync(CacheTag, cancellationToken);
 
             return NoContent();
         }
 
-
-
-
-
-        //-------------------------------------------------//
-
-
-
+        // GET: api/Product/Filter
         [HttpGet("Filter")]
         [AllowAnonymous]
-        public async Task<ActionResult<List<ProductDTO>>> Filter([FromQuery] ProductFilterDTO productFilterDTO)
+        public async Task<ActionResult<List<ProductDTO>>> Filter(
+            [FromQuery] ProductFilterDTO productFilterDTO,
+            CancellationToken cancellationToken)
         {
             var products = await productRepository.GetFilteredAsync(productFilterDTO);
 
-
-
-            // Check if the products list is null or empty and return a NotFound response if it is
-            var productoDTO = mapper.Map<List<ProductDTO>>(products);
-
-
-
-            return Ok(productoDTO);
+            return Ok(mapper.Map<List<ProductDTO>>(products));
         }
 
+        private async Task<bool> CanManageAsync(Product product)
+        {
+            if (User.HasClaim(claim => claim.Type == "Admin"))
+            {
+                return true;
+            }
 
+            var userId = await userService.GetUserId();
+
+            return userId is not null && product.UserId == userId;
+        }
     }
 }
