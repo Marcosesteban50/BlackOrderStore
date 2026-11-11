@@ -13,6 +13,8 @@ namespace Black_order.DTOs.UserDTOs
 
         public string? Email { get; set; }
 
+        public string? NickName { get; set; }
+
 
         [MaxLength(200)]
         public string? Address { get; set; }

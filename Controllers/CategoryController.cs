@@ -1,7 +1,7 @@
-﻿using Black_order.Data;
-using Black_order.DTOs.CategoryDTOs;
+﻿using Black_order.DTOs.CategoryDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Models;
+using Black_order.Repositories.Categories;
 using Black_order.Services.Files;
 using Black_order.Services.UserServices;
 using MapsterMapper;
@@ -9,19 +9,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.EntityFrameworkCore;
 using System.ComponentModel;
 
 namespace Black_order.Controllers
 {
     [ApiController]
     [Route("api/[Controller]")]
-    //[Authorize]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "Admin")]
+
 
 
     public class CategoryController : ControllerBase
     {
-        private readonly AppDbContext dbContext;
+        private readonly ICategoryRepository categoryRepository;
         private readonly IOutputCacheStore outputCacheStore;
         private readonly IMapper mapper;
         private readonly IUserService userService;
@@ -29,10 +29,10 @@ namespace Black_order.Controllers
         private const string cacheTag = "categories";
         private readonly string container = "categories";
 
-        public CategoryController(AppDbContext dbContext,
+        public CategoryController(ICategoryRepository categoryRepository,
             IOutputCacheStore outputCacheStore, IMapper mapper, IUserService userService, iFileStorage fileStorage)
         {
-            this.dbContext = dbContext;
+            this.categoryRepository = categoryRepository;
             this.outputCacheStore = outputCacheStore;
             this.mapper = mapper;
             this.userService = userService;
@@ -41,12 +41,13 @@ namespace Black_order.Controllers
 
         [HttpGet("GetCategories")]
         [OutputCache(Duration = 60, Tags = [cacheTag])]
+        [AllowAnonymous]
 
 
         public async Task<ActionResult<List<CategoryDTO>>> Get()
         {
             //Getting categories from the database
-            var categories = await dbContext.Categories.AsNoTracking().Include(x => x.Images).ToListAsync();
+            var categories = await categoryRepository.GetAllAsync();
 
 
             if (categories == null || categories.Count == 0)
@@ -68,13 +69,12 @@ namespace Black_order.Controllers
 
         [HttpGet("{id}", Name = "GetCategoryById")]
         [OutputCache(Duration = 60, Tags = [cacheTag])]
+        [AllowAnonymous]
 
         public async Task<ActionResult<CategoryDTO>> Get(string id)
         {
 
-            var category = await dbContext.Categories
-                .AsNoTracking().Include(x => x.Products).Include(x => x.Images)
-              .FirstOrDefaultAsync(x => x.Id == id);
+            var category = await categoryRepository.GetByIdAsync(id);
 
 
             if (category == null)
@@ -90,16 +90,10 @@ namespace Black_order.Controllers
 
 
         [HttpPost("Add-Category")]
-
         public async Task<ActionResult<CategoryDTO>> Post([FromForm] CreateCategoryDTO category)
         {
 
-            var userId = await userService.GetUserId();
-
-            if (userId == null)
-            {
-                return Unauthorized(new { message = "User not authorized" });
-            }
+   
 
             // Validate the incoming model
             if (!ModelState.IsValid)
@@ -133,10 +127,10 @@ namespace Black_order.Controllers
 
 
             //Adding the new category to the database
-            dbContext.Add(categoryEntity);
+            await categoryRepository.AddAsync(categoryEntity);
 
             //Saving changes to the database
-            await dbContext.SaveChangesAsync();
+            await categoryRepository.SaveChangesAsync();
 
 
 
@@ -168,7 +162,7 @@ namespace Black_order.Controllers
             }
 
             //Verifying if the category exists in the database
-            var categoryExists = await dbContext.Categories.Include(x => x.Images).FirstOrDefaultAsync(x => x.Id == id);
+            var categoryExists = await categoryRepository.GetTrackedByIdAsync(id);
 
             // If the category does not exist, return a 404 Not Found response
             if (categoryExists == null)
@@ -188,7 +182,7 @@ namespace Black_order.Controllers
 
                     if (img != null)
                     {
-                        dbContext.CategoryImage.Remove(img);
+                        categoryRepository.RemoveImage(img);
                     }
                 }
             }
@@ -217,7 +211,7 @@ namespace Black_order.Controllers
 
 
             // Save changes to the database
-            await dbContext.SaveChangesAsync();
+            await categoryRepository.SaveChangesAsync();
 
 
             // Evict the cache for categories to ensure the updated data is reflected
@@ -232,25 +226,29 @@ namespace Black_order.Controllers
         public async Task<IActionResult> Delete(string id)
         {
 
-            var category = await dbContext.Categories
-                .Include(x => x.Images).FirstOrDefaultAsync(x => x.Id == id);
-            
+            // Verifying if the category exists in the database
+            var category = await categoryRepository.GetTrackedByIdAsync(id);
 
+            // If the category does not exist, return a 404 Not Found response
             if (category == null)
             {
                 return NotFound(new {message = "Category not found"});
             }
 
-            // Limpiar archivos de imágenes físicos si aplica
+            // Delete associated images from storage
             foreach (var img in category.Images)
             {
+                // Assuming fileStorage.Delete is a method that deletes the file from storage
                 await fileStorage.Delete(img.Url, container);
             }
 
-            dbContext.Remove(category);
+            // Remove the category from the database
+            categoryRepository.Remove(category);
 
-            await dbContext.SaveChangesAsync();
+            // Save changes to the database
+            await categoryRepository.SaveChangesAsync();
 
+            // Evict the cache for categories to ensure the deleted category is no longer reflected in subsequent requests
             await outputCacheStore.EvictByTagAsync(cacheTag, default);
 
             return NoContent();

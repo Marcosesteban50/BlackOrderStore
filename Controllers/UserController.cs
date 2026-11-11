@@ -1,12 +1,14 @@
-﻿using Black_order.Data;
+﻿using Black_order.DTOs.GoogleDTOs;
 using Black_order.DTOs.UserDTOs;
+using Black_order.Repositories.Profiles;
+using Black_order.Repositories.Users;
 using Black_order.Services.UserServices;
 using Google;
+using Google.Apis.Auth;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -21,186 +23,132 @@ namespace Black_order.Controllers
         private readonly UserManager<IdentityUser> userManager;
         private readonly SignInManager<IdentityUser> signInManager;
         private readonly IConfiguration configuration;
-        private readonly AppDbContext dbContext;
+        private readonly IProfileRepository profileRepository;
+        private readonly IUserRepository userRepository;
         private readonly IMapper mapper;
         private readonly ILogger<UserController> logger;
-        private readonly IUserService userService;
 
         public UserController(UserManager<IdentityUser> userManager,
             SignInManager<IdentityUser> signInManager, IConfiguration configuration,
-            AppDbContext dbContext, IMapper mapper, ILogger<UserController> logger, IUserService userService)
+            IProfileRepository profileRepository, IUserRepository userRepository,
+            IMapper mapper, ILogger<UserController> logger)
         {
             this.userManager = userManager;
             this.signInManager = signInManager;
             this.configuration = configuration;
-            this.dbContext = dbContext;
+            this.profileRepository = profileRepository;
+            this.userRepository = userRepository;
             this.mapper = mapper;
             this.logger = logger;
-            this.userService = userService;
         }
 
-
+        // GET: api/User/UserList
         [HttpGet("UserList")]
         [AllowAnonymous]
         public async Task<ActionResult<List<UserDTO>>> UserList()
         {
-
-            var users = await userManager.Users.ToListAsync();
-
-            var lista = new List<UserDTO>();
-
-            foreach (var user in users)
-            {
-
-                var claims = await userManager.GetClaimsAsync(user);
-                var roles = claims.Select(c => $"{c.Type}: {c.Value}").ToList();
-
-                lista.Add(new UserDTO
-                {
-                    Email = user.Email!,
-                    Roles = roles
-
-                });
-            }
-
-
-            return lista;
-
+            var users = await userRepository.GetUsersWithClaimsAsync();
+            return Ok(users);
         }
-
 
         // POST: api/User/Sign-Up
         [AllowAnonymous]
         [HttpPost("Sign-Up")]
         public async Task<ActionResult<AuthResponseDTO>> SignUp(UserCredentialsDTO userCredentialsDTO)
         {
-
-
-            // Verify if the user already exists
+            // Initialize new identity user object
             var user = new IdentityUser
             {
                 Email = userCredentialsDTO.Email,
-                UserName = userCredentialsDTO.Email
+                UserName = userCredentialsDTO.NickName,
+                NormalizedEmail = userCredentialsDTO.Email.ToUpper(),
+                NormalizedUserName = userCredentialsDTO.NickName.ToUpper()
             };
 
-            // Check if the user already exists
-            var result = await userManager.CreateAsync(user, userCredentialsDTO.Password);
+            // Check if the user already exists in the database
+            var userExists = await userManager.FindByEmailAsync(user.Email!);
+            if (userExists != null)
+            {
+                return BadRequest(new { mensaje = "Error in sign up" });
+            }
 
-            // If the user creation failed, return a BadRequest with the errors
+            // Create user with provided password
+            var result = await userManager.CreateAsync(user, userCredentialsDTO.Password);
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors);
             }
 
+            // Ensure the user profile exists
+            await EnsureProfileAsync(user);
 
-            //var perfil = new UserProfile
-            //{
-            //    UserId = user.Id,
-            //    Email = user.Email,
-            //    Address = "", // o null
-            //    Phone = null,
-            //    FullName = null
-            //};
+            await profileRepository.SaveChangesAsync();
 
-
-            // Add the user profile to the database
-            //await dbContext.PerfilesUsuarios.AddAsync(perfil);
-
-            //Save changes to the database
-            await dbContext.SaveChangesAsync();
-
-            // Add a default claim to the user (optional)
+            // Assign default customer claim
             await CustomerMaker(user);
 
-            // Generate a token for the newly created user
+            // Generate and return JWT token
             return await TokenBuilder(user);
         }
 
-
+        // POST: api/User/Login
         [AllowAnonymous]
         [HttpPost("Login")]
-        public async Task<ActionResult<AuthResponseDTO>> Login(UserCredentialsDTO userCredentialsDTO)
+        public async Task<ActionResult<AuthResponseDTO>> Login(UserLoginDTO userCredentialsDTO)
         {
-            var user = await userManager.FindByEmailAsync(userCredentialsDTO.Email);
-
+            // Find the user by email first, then by username (nickname).
+            var user = await userManager.FindByEmailAsync(userCredentialsDTO.Email)
+                ?? await userManager.FindByNameAsync(userCredentialsDTO.Email);
             if (user == null)
             {
                 return BadRequest(new { mensaje = "Error in login" });
             }
 
+            // Validate user credentials
             var result = await signInManager.CheckPasswordSignInAsync(user,
                 userCredentialsDTO.Password, lockoutOnFailure: false);
 
-
             if (!result.Succeeded)
             {
-
                 return BadRequest(new { mensaje = "Error in login" });
             }
 
-            //var perfil = await dbContext.PerfilesUsuarios.AnyAsync(x => x.UsuarioId == usuario.Id);
+            // Ensure profile exists for existing users
+            await EnsureProfileAsync(user);
 
-            //if (!perfil)
-            //{
-            //    var nuevoPerfil = new PerfilUsuario
-            //    {
-            //        UsuarioId = usuario.Id,
-            //        Email = usuario.Email,
-            //        DireccionEnvio = "", // o null
-            //        Telefono = null,
-            //        NombreCompleto = null
-            //    };
-            //    await dbContext.PerfilesUsuarios.AddAsync(nuevoPerfil);
-            //    await dbContext.SaveChangesAsync();
+            await profileRepository.SaveChangesAsync();
 
-            //}
-
+            // Generate and return JWT token
             return await TokenBuilder(user);
-
         }
 
-
-        //Token Builder Method
+        // Token Builder Method
         private async Task<AuthResponseDTO> TokenBuilder(IdentityUser identityUser)
         {
-
-            // Create claims for the token
+            // Define core claims for the token
             var claims = new List<Claim>
             {
-
-                //Claim Id is used to store the user's unique identifier in the token
-              new Claim(ClaimTypes.NameIdentifier, identityUser.Id),
-              //email = identityUser.Email
-              //Claim email is used to store the user's email address in the token
-              new Claim("email",identityUser.Email!),
-
+                new Claim(ClaimTypes.NameIdentifier, identityUser.Id),
+                new Claim("email", identityUser.Email!),
             };
 
-            // Get claims from the database for the user
+            // Retrieve additional claims from the database
             var claimsDB = await userManager.GetClaimsAsync(identityUser);
-
-
-            // Add the claims from the database to the list of claims
             claims.AddRange(claimsDB);
 
-            // Create a symmetric security key using the JWT key from the configuration
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes
-                (configuration["jwtkey"]!));
-
-            // Create signing credentials using the security key and HMAC SHA256 algorithm
+            // Configure security key and signing credentials
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["jwtkey"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            // Set the token expiration to 1 year from now
-            var expiration = DateTime.UtcNow.AddYears(1);
+            // Set token expiration to 60 minutes
+            var expiration = DateTime.UtcNow.AddMinutes(60);
 
-            // Create the JWT security token with the specified claims, expiration, and signing credentials
+            // Build the JWT token
             var SecurityToken = new JwtSecurityToken(issuer: null, audience: null,
                 claims: claims, expires: expiration, signingCredentials: creds);
 
-            // Write the token to a string
             var token = new JwtSecurityTokenHandler().WriteToken(SecurityToken);
 
-            // Return the AuthResponseDTO with the generated token and expiration date
             return new AuthResponseDTO
             {
                 Token = token,
@@ -208,71 +156,193 @@ namespace Black_order.Controllers
             };
         }
 
-
-
-
-        // Become Admin Method
+        // POST: api/User/MakeAdmin
         [HttpPost("MakeAdmin")]
         [AllowAnonymous]
-        public async Task<IActionResult> HacerAdmin(EditClaimDTO editClaimDTO)
+        public async Task<IActionResult> MakeAdmin(EditClaimDTO editClaimDTO)
         {
-
-            // Find the user by email using the UserManager
+            // Find user target for promotion
             var user = await userManager.FindByEmailAsync(editClaimDTO.Email);
-
-            // If the user is not found, return a NotFound response with a message
             if (user == null)
             {
-                return NotFound(new { mensaje = $"User not found {user}" });
+                return NotFound(new { mensaje = $"User not found {editClaimDTO.Email}" });
             }
 
-            // Check if the user already has the "Admin" claim
+            // Verify if user already possesses admin privileges
             var claims = await userManager.GetClaimsAsync(user);
-
-            // If the user already has the "Admin" claim, return a BadRequest response with a message
-            var isAdmin = claims.Any(x => x.Type == "Admin");
+            var isAdmin = claims.Any(x => x.Type == CustomClaims.Admin);
 
             if (isAdmin)
             {
                 return BadRequest(new { mensaje = "The user is already an admin" });
             }
 
-            // Add the "Admin" claim to the user if it doesn't already exist
-            await userManager.AddClaimAsync(user, new Claim("Admin", "true"));
+            // Grant Admin claim
+            await userManager.AddClaimAsync(user, new Claim(CustomClaims.Admin, "true"));
 
-
-            // Return a NoContent response indicating that the operation was successful
             return NoContent();
-
         }
 
-
-        // Method to add the "Customer" claim to the user if it doesn't already exist
+        // Helper method to assign default Customer claim
         private async Task<bool> CustomerMaker(IdentityUser identityUser)
         {
-
-            // Find the user by email using the identityUser's email
             var user = await userManager.FindByEmailAsync(identityUser.Email!);
-
-            // If the user is not found, throw an exception
             if (user == null)
             {
                 throw new Exception("Not Found");
             }
 
+            var AlreadyCustomer = (await userManager.GetClaimsAsync(user)).Any(c => c.Type == CustomClaims.Customer);
 
-            // Check if the "Customer" claim already exists for the user
-            var AlreadyCustomer = (await userManager.GetClaimsAsync(user)).Any(c => c.Type == "Customer");
-
-            // If the "Customer" claim doesn't exist, add it to the user
             if (!AlreadyCustomer)
             {
-                // Add the "Customer" claim to the user if it doesn't already exist
-                await userManager.AddClaimAsync(user, new Claim("client", "true"));
+                await userManager.AddClaimAsync(user, new Claim(CustomClaims.Customer, "true"));
             }
 
             return true;
+        }
 
+        // POST: api/User/google-login
+        [AllowAnonymous]
+        [HttpPost("google-login")]
+        public async Task<ActionResult<CompleteAuthResponseDTO>> GoogleLogin([FromBody] GoogleLoginRequestDTO request)
+        {
+            try
+            {
+                // Validate Google ID token
+                var payload = await GoogleJsonWebSignature.ValidateAsync(
+                    request.Token,
+                    new GoogleJsonWebSignature.ValidationSettings
+                    {
+                        Audience = [configuration["GoogleClientId"]!]
+                    });
+
+                var user = await userManager.FindByEmailAsync(payload.Email);
+
+                if (user == null)
+                {
+                    // Register user if they do not exist
+                    user = new IdentityUser
+                    {
+                        Email = payload.Email,
+                        UserName = payload.Email,
+                        EmailConfirmed = true
+                    };
+
+                    var result = await userManager.CreateAsync(user);
+                    if (!result.Succeeded)
+                    {
+                        return BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
+                    }
+
+                    await userManager.AddClaimAsync(user, new Claim(CustomClaims.GoogleId, payload.Subject));
+                    await CustomerMaker(user);
+                    await EnsureProfileAsync(user);
+                }
+                else
+                {
+                    // Link GoogleId if not already present
+                    var existingClaims = await userManager.GetClaimsAsync(user);
+                    if (!existingClaims.Any(c => c.Type == CustomClaims.GoogleId))
+                    {
+                        await userManager.AddClaimAsync(user, new Claim(CustomClaims.GoogleId, payload.Subject));
+                    }
+                }
+
+                await EnsureProfileAsync(user);
+
+                // Build token and gather roles
+                var authResponse = await TokenBuilder(user);
+                var claims = await userManager.GetClaimsAsync(user);
+
+                var roles = claims.Where(c => c.Type == CustomClaims.Admin || c.Type == CustomClaims.Customer || c.Type == CustomClaims.Seller)
+                                 .Select(c => $"{c.Type}: {c.Value}")
+                                 .ToList();
+
+                await profileRepository.SaveChangesAsync();
+
+                return new CompleteAuthResponseDTO
+                {
+                    Token = authResponse.Token,
+                    Expiration = authResponse.Expiration,
+                    Usuario = new UserInfoDTO
+                    {
+                        Email = user.Email!,
+                        Name = payload.Name ?? user.Email!.Split('@')[0],
+                        Picture = payload.Picture,
+                        GoogleId = payload.Subject
+                    }
+                };
+            }
+            catch (InvalidJwtException ex)
+            {
+                logger.LogWarning("Invalid Google Token: {Message}", ex.Message);
+                return Unauthorized(new { mensaje = "Invalid Google Token" });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Internal Server Error");
+                return StatusCode(500, "Internal Server Error");
+            }
+        }
+
+        // Centralized custom claims constants
+        public static class CustomClaims
+        {
+            public const string Admin = "Admin";
+            public const string Seller = "Seller";
+            public const string Customer = "Customer";
+            public const string GoogleId = "GoogleId";
+        }
+
+        // Ensures user profile exists in database
+        private async Task EnsureProfileAsync(IdentityUser user)
+        {
+            var exists = await profileRepository.GetByUserIdAsync(user.Id);
+            if (exists == null)
+            {
+                var perfil = new UserProfile
+                {
+                    UserId = user.Id,
+                    Email = user.Email,
+                    NickName = user.UserName,
+                    Address = "",
+                    Phone = null,
+                    FullName = null
+                };
+                await profileRepository.AddAsync(perfil);
+                await profileRepository.SaveChangesAsync();
+            }
+        }
+
+
+        [HttpGet("whoami")]
+        [Authorize]  // sin policy, solo autenticado
+        public IActionResult WhoAmI()
+        {
+            var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+            return Ok(claims);
+        }
+
+
+        [HttpGet("test-admin")]
+        [Authorize]
+        public IActionResult TestAdmin()
+        {
+            // Comprobamos si el usuario tiene el claim Admin.
+            var isAdmin = User.HasClaim("Admin", "true");
+
+            // Mostramos el resultado de la comprobación.
+            return Ok(new
+            {
+                IsAuthenticated = User.Identity?.IsAuthenticated,
+                IsAdmin = isAdmin,
+                Claims = User.Claims.Select(c => new
+                {
+                    c.Type,
+                    c.Value
+                })
+            });
         }
     }
 }

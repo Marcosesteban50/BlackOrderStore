@@ -1,4 +1,10 @@
 using Black_order.Data;
+using Black_order.Repositories.Categories;
+using Black_order.Repositories.Carts;
+using Black_order.Repositories.Favorites;
+using Black_order.Repositories.Products;
+using Black_order.Repositories.Profiles;
+using Black_order.Repositories.Users;
 using Black_order.Services.Files;
 using Black_order.Services.UserServices;
 using Google;
@@ -90,6 +96,12 @@ builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 builder.Services.AddTransient<iFileStorage,LocalFileStorage>();
 builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<ICartRepository, CartRepository>();
+builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 
 builder.Services.AddAuthentication(x =>
@@ -115,7 +127,11 @@ builder.Services.AddAuthentication(x =>
 
 builder.Services.AddAuthorization(options =>
 {
-
+    options.AddPolicy("Admin", policy => policy.RequireClaim("Admin"));
+    options.AddPolicy("User", policy => policy.RequireClaim("User"));
+    options.AddPolicy("AdminOrUser", policy => policy.RequireClaim("Admin", "User"));
+    options.AddPolicy("Seller", policy => policy.RequireClaim("Seller"));
+    options.AddPolicy("Customer", policy => policy.RequireClaim("Customer"));
 });
 
 
@@ -151,17 +167,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseSwagger();
 
+app.UseHttpsRedirection();
 app.UseCors();
 
 app.UseStaticFiles();
 
 
-app.UseHttpsRedirection();
 
-app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseOutputCache();
 app.MapControllers();
 
 app.Run();

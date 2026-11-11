@@ -1,14 +1,13 @@
-﻿using Black_order.Data;
-using Black_order.DTOs.CategoryDTOs;
+﻿using Black_order.DTOs.CategoryDTOs;
 using Black_order.DTOs.ProductDTOs;
 using Black_order.Models;
+using Black_order.Repositories.Products;
 using Black_order.Services.Files;
 using Black_order.Services.UserServices;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.EntityFrameworkCore;
 
 namespace Black_order.Controllers
 {
@@ -19,18 +18,18 @@ namespace Black_order.Controllers
     {
         private readonly IMapper mapper;
         private readonly IOutputCacheStore outputCacheStore;
-        private readonly AppDbContext dbContext;
+        private readonly IProductRepository productRepository;
         private readonly iFileStorage fileStorage;
         private readonly IUserService userService;
         private const string cacheTag = "products";
         private readonly string container = "products";
 
         public ProductController(IMapper mapper, IOutputCacheStore outputCacheStore,
-            AppDbContext dbContext, iFileStorage fileStorage, IUserService userService)
+            IProductRepository productRepository, iFileStorage fileStorage, IUserService userService)
         {
             this.mapper = mapper;
             this.outputCacheStore = outputCacheStore;
-            this.dbContext = dbContext;
+            this.productRepository = productRepository;
             this.fileStorage = fileStorage;
             this.userService = userService;
         }
@@ -45,8 +44,7 @@ namespace Black_order.Controllers
         {
 
             // Getting all products from the database 
-            var products = await dbContext.Products.AsNoTracking().Include(x => x.Category)
-                .Include(x => x.Images).ToListAsync();
+            var products = await productRepository.GetAllAsync();
 
 
             //Mapping the products to ProductDTOs using Mapster
@@ -69,9 +67,7 @@ namespace Black_order.Controllers
         public async Task<ActionResult<ProductDTO>> Get(string id)
         {
 
-            var product = await dbContext.Products.AsNoTracking().Include(x => x.Category)
-                .Include(x => x.Images)
-              .FirstOrDefaultAsync(x => x.Id == id);
+            var product = await productRepository.GetByIdAsync(id);
 
 
             if (product == null)
@@ -92,6 +88,11 @@ namespace Black_order.Controllers
         [HttpPost("Add-Product")]
         public async Task<ActionResult<ProductDTO>> Post([FromForm] ProductCreateDTO productCreateDTO)
         {
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
             var userId = await userService.GetUserId();
 
@@ -131,10 +132,10 @@ namespace Black_order.Controllers
             }
 
             // Add the new product to the database
-            dbContext.Add(products);
+            await productRepository.AddAsync(products);
 
             // Save the changes to the database
-            await dbContext.SaveChangesAsync();
+            await productRepository.SaveChangesAsync();
 
             // Evict the cache for products to ensure the newly created product is reflected in subsequent requests
             await outputCacheStore.EvictByTagAsync(cacheTag, default);
@@ -143,10 +144,7 @@ namespace Black_order.Controllers
 
 
             // Retrieve the category name for the newly created product and set it in the ProductDTO
-            var CategoryName = await dbContext.Categories
-                .Where(x => x.Id == products.CategoryId)
-                .Select(x => x.Name)
-                .FirstOrDefaultAsync();
+            var CategoryName = await productRepository.GetCategoryNameAsync(products.CategoryId);
 
             //Map from product to ProductDTO to return that to the user
             var productDTO = mapper.Map<ProductDTO>(products);
@@ -172,10 +170,10 @@ namespace Black_order.Controllers
             }
 
             //Verifying if the category exists in the database
-            var productExists = await dbContext.Products.FirstOrDefaultAsync(x => x.Id == id);
+            var productExists = await productRepository.GetTrackedByIdAsync(id);
 
             // If the category does not exist, return a 404 Not Found response
-            if (productExists != null)
+            if (productExists == null)
             {
                 return NotFound(new { message = "Product not found" });
             }
@@ -188,10 +186,10 @@ namespace Black_order.Controllers
 
 
             // Update the product in the database
-            dbContext.Update(productEntity);
+            productRepository.Update(productEntity);
 
             // Save changes to the database
-            await dbContext.SaveChangesAsync();
+            await productRepository.SaveChangesAsync();
 
             // Evict the cache for products to ensure the updated data is reflected
             await outputCacheStore.EvictByTagAsync(cacheTag, default);
@@ -199,10 +197,7 @@ namespace Black_order.Controllers
             var productDTO = mapper.Map<ProductDTO>(productEntity);
 
             // Retrieve the category name for the updated product and set it in the ProductDTO
-            productDTO.CategoryName = await dbContext.Categories
-           .Where(x => x.Id == productDTO.CategoryId)
-           .Select(x => x.Name)
-           .FirstOrDefaultAsync();
+            productDTO.CategoryName = await productRepository.GetCategoryNameAsync(productDTO.CategoryId);
 
 
 
@@ -217,9 +212,7 @@ namespace Black_order.Controllers
         {
 
             // Check if the product exists in the database
-            var product = await dbContext.Products
-                .Include(x => x.Images)
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var product = await productRepository.GetByIdWithImagesAsync(id);
 
             // if there are no products in the database return a NotFound response
             if (product == null)
@@ -232,8 +225,8 @@ namespace Black_order.Controllers
                 await fileStorage.Delete(img.Url, container);
             }
 
-            dbContext.Remove(product);
-            await dbContext.SaveChangesAsync();
+            productRepository.Remove(product);
+            await productRepository.SaveChangesAsync();
 
 
             // Evict the cache for products to ensure the deleted product is not reflected in subsequent requests
@@ -254,45 +247,7 @@ namespace Black_order.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<List<ProductDTO>>> Filter([FromQuery] ProductFilterDTO productFilterDTO)
         {
-            // New query to get products from the database
-            var queryProducts = dbContext.Products
-                .AsNoTracking()
-                .Where(x => x.Available)
-                .AsQueryable();
-
-            //Name Filter: If the name filter is not null or empty, filter the products by name
-            if (!string.IsNullOrWhiteSpace(productFilterDTO.Name))
-            {
-                queryProducts = queryProducts
-                    .Where(x => x.Name!.Contains(productFilterDTO.Name));
-            }
-
-            //Category Filter: If the category filter is not null or empty, filter the products by category
-            if (!string.IsNullOrWhiteSpace(productFilterDTO.CategoryId))
-            {
-                queryProducts = queryProducts
-                    .Where(x => x.CategoryId == productFilterDTO.CategoryId);
-            }
-
-
-
-            // Low to High Filter
-            if (productFilterDTO.LowPrice)
-            {
-                queryProducts = queryProducts
-                    .OrderBy(x => x.Price);
-            }
-            // High to Low Filter
-            else if (productFilterDTO.HighPrice)
-            {
-                queryProducts = queryProducts
-                    .OrderByDescending(x => x.Price);
-            }
-
-            // Execute the query and get the list of products from the database
-            var products = await queryProducts.Include(x => x.Category)
-                .Include(x => x.Images)
-                .ToListAsync();
+            var products = await productRepository.GetFilteredAsync(productFilterDTO);
 
 
 

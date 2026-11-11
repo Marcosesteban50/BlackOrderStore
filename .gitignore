@@ -1,3 +1,13 @@
 .vs/
 bin/
 obj/
+# Local tooling / backups
+.tools/
+.nuget-feed/
+*.Backup.tmp
+*.backup.txt
+*.before-improvements.txt
+
+# Secretos locales (usar appsettings.Development.example.json)
+appsettings.Development.json
+

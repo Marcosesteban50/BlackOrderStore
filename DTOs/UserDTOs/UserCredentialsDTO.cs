@@ -10,6 +10,8 @@ namespace Black_order.DTOs.UserDTOs
         public required string Email { get; set; }
         [Required]
         public required string Password { get; set; }
+        [Required]
+        public required string NickName { get; set; }
 
     }
 }

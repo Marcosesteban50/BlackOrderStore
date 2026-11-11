@@ -1,7 +1,11 @@
 
+using Black_order.DTOs.UserDTOs;
 using Black_order.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Models.Cart;
+using Models.Favorite;
 
 
 namespace Black_order.Data
@@ -18,108 +22,101 @@ namespace Black_order.Data
         {
             base.OnModelCreating(modelBuilder);
 
-
-            // Configuration for the Product entity
-            modelBuilder.Entity<Product>(x =>
-            {
-
-                // Configure the Id property to be generated on add
-                x.Property(x => x.Id).ValueGeneratedOnAdd();
-
-
-                // Configure the relationship between Product and User
-                x.HasOne(x => x.User)
-                  .WithMany()
-                  .HasForeignKey(x => x.UserId);
-
-
-                // Configure the Name property to be required and have a maximum length of 25 characters
-                x.Property(x => x.Name).IsRequired()
-                .HasMaxLength(25);
-
-
-                // Configure the Description property to have a maximum length of 100 characters
-                x.Property(x => x.Description).HasMaxLength(100);
-
-
-                // Configure the Price property to have a decimal type with precision and scale
-                x.Property(x => x.Price).HasColumnType("decimal(18,2)").IsRequired();
-
-
-
-                //Relationship with Category
-                x.HasOne(x => x.Category)
-                 .WithMany(x => x.Products)
-                 .HasForeignKey(x => x.CategoryId)
-                 .OnDelete(DeleteBehavior.SetNull);
-
-
-                // Configure the Available property to be required
-                x.Property(x => x.Available).IsRequired();
-
-                // Configure the Approved property to be required
-                x.Property(x => x.Approved).IsRequired();
-
-                
-
-
-
-
-            });
-
-            // Configuration for the Category entity
-            modelBuilder.Entity<Category>(x =>
-            {
-                // Configure the Id property to be generated on add
-                x.Property(x => x.Id).ValueGeneratedOnAdd();
-
-                // Configure the Name property to be required and have a maximum length of 25 characters
-                x.Property(x => x.Name).IsRequired()
-                .HasMaxLength(25);
-
-                // Configure the Description property to be required and have a maximum length of 500 characters
-                x.Property(x => x.Description).IsRequired()
-                .HasMaxLength(500);
-
-            });
-
-
-            // Configuration for the ProductImage entity
-            modelBuilder.Entity<ProductImage>(x =>
-            {
-                // Configure the Id property to be generated on add
-                x.Property(x => x.Id).ValueGeneratedOnAdd();
-                // Configure the Url property to be required
-                x.Property(x => x.Url).IsRequired();
-                // Configure the relationship between ProductImage and Product
-                x.HasOne(x => x.Product)
-                 .WithMany(x => x.Images)
-                 .HasForeignKey(x => x.ProductId)
-                 .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            modelBuilder.Entity<CategoryImage>(x =>
-            {
-                // Configure the Url property to be required
-                x.Property(x => x.Url).IsRequired();
-                // Configure the relationship between CategoryImage and Category
-                x.HasOne(x => x.Category)
-                 .WithMany(x => x.Images)
-                 .HasForeignKey(x => x.CategoryId)
-                 .OnDelete(DeleteBehavior.Cascade);
-            });
-
-
-
-
+            ConfigureProduct(modelBuilder.Entity<Product>());
+            ConfigureCategory(modelBuilder.Entity<Category>());
+            ConfigureProductImage(modelBuilder.Entity<ProductImage>());
+            ConfigureCategoryImage(modelBuilder.Entity<CategoryImage>());
+            ConfigureUserProfile(modelBuilder.Entity<UserProfile>());
+            ConfigureFavorite(modelBuilder.Entity<Favorite>());
+            ConfigureFavoriteItem(modelBuilder.Entity<FavoriteItems>());
         }
 
-        // Define DbSet properties
-        public DbSet<Product> Products { get; set; }
-        public DbSet<Category> Categories { get; set; }
+        private static void ConfigureProduct(EntityTypeBuilder<Product> entity)
+        {
+            entity.Property(product => product.Id).ValueGeneratedOnAdd();
+            entity.Property(product => product.Name).IsRequired().HasMaxLength(200);
+            entity.Property(product => product.Description).HasMaxLength(100);
+            entity.Property(product => product.Price).HasPrecision(18, 2).IsRequired();
+            entity.Property(product => product.Available).IsRequired();
+            entity.Property(product => product.Approved).IsRequired();
 
-        public DbSet<CategoryImage> CategoryImage { get; set; }
+            entity.HasOne(product => product.User)
+                .WithMany()
+                .HasForeignKey(product => product.UserId);
 
+            entity.HasOne(product => product.Category)
+                .WithMany(category => category.Products)
+                .HasForeignKey(product => product.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+        }
+
+        private static void ConfigureCategory(EntityTypeBuilder<Category> entity)
+        {
+            entity.Property(category => category.Id).ValueGeneratedOnAdd();
+            entity.Property(category => category.Name).IsRequired().HasMaxLength(25);
+            entity.Property(category => category.Description).IsRequired().HasMaxLength(500);
+        }
+
+        private static void ConfigureProductImage(EntityTypeBuilder<ProductImage> entity)
+        {
+            entity.ToTable("ProductImage");
+            entity.Property(image => image.Id).ValueGeneratedOnAdd();
+            entity.Property(image => image.Url).IsRequired();
+            entity.HasOne(image => image.Product)
+                .WithMany(product => product.Images)
+                .HasForeignKey(image => image.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureFavorite(EntityTypeBuilder<Favorite> entity)
+        {
+            entity.HasOne(favorite => favorite.User)
+                .WithMany()
+                .HasForeignKey(favorite => favorite.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureFavoriteItem(EntityTypeBuilder<FavoriteItems> entity)
+        {
+            entity.HasOne(item => item.Favorite)
+                .WithMany(favorite => favorite.Items)
+                .HasForeignKey(item => item.FavoriteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureCategoryImage(EntityTypeBuilder<CategoryImage> entity)
+        {
+            entity.ToTable("CategoryImage");
+            entity.Property(image => image.Url).IsRequired();
+            entity.HasOne(image => image.Category)
+                .WithMany(category => category.Images)
+                .HasForeignKey(image => image.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureUserProfile(EntityTypeBuilder<UserProfile> entity)
+        {
+            entity.Property(profile => profile.UserId).IsRequired();
+            entity.HasOne(profile => profile.User)
+                .WithMany()
+                .HasForeignKey(profile => profile.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        public DbSet<Product> Products => Set<Product>();
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+        public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+        public DbSet<CategoryImage> CategoryImage => Set<CategoryImage>();
+        public DbSet<Cart> Cart => Set<Cart>();
+        public DbSet<CartItem> CartItems => Set<CartItem>();
+        public DbSet<Favorite> Favorites => Set<Favorite>();
+        public DbSet<FavoriteItems> FavoriteItems => Set<FavoriteItems>();
 
     }
 }
